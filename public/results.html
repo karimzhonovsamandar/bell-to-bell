@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bell to Bell Results</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Caveat:wght@700&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout idea: the class register. One table, the teacher's red pen writes the marks. */
+  --paper: #f8faf6; --grid: #d6e1f0; --ink: #1d2f7a; --text: #22262e; --muted: #5a6373;
+  --red: #d12a2f; --green: #1c7a4a; --cover: #1f4a3a; --card: #ffffff;
+  --font-display: 'Bricolage Grotesque', 'Trebuchet MS', sans-serif;
+  --font-body: 'Onest', 'Segoe UI', system-ui, sans-serif;
+  --font-pen: 'Caveat', 'Segoe Print', cursive;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font-body); color: var(--text); line-height: 1.45; background-color: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+header { background: var(--cover); color: #fff; padding: .7rem clamp(16px, 3vw, 2.5rem); display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.brand { font-family: var(--font-display); font-weight: 800; background: var(--paper); color: var(--ink); padding: .2rem .7rem; border-radius: 3px; }
+header span { font-weight: 600; }
+main { max-width: 68rem; margin: 0 auto; padding: 1.5rem clamp(16px, 3vw, 2.5rem) 3rem; display: grid; gap: 1.2rem; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 5vw, 3.2rem); color: var(--ink); margin: 0; letter-spacing: -.02em; line-height: 1.05; }
+.sum { display: flex; gap: .6rem 2rem; flex-wrap: wrap; font-weight: 600; color: var(--muted); }
+.sum b { font-family: var(--font-display); font-size: 1.5rem; color: var(--ink); font-variant-numeric: tabular-nums; margin-right: .3rem; }
+.bar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+button, a.btn {
+  font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-block;
+  background: var(--card); color: var(--ink); border: 2px solid var(--ink); border-radius: 8px; padding: .5rem 1rem;
+}
+button:hover, a.btn:hover { background: var(--ink); color: #fff; }
+button.danger { border-color: var(--red); color: var(--red); }
+button.danger:hover, button.danger.sure { background: var(--red); color: #fff; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+#status { color: var(--muted); font-size: .9rem; margin-left: auto; }
+#status.bad { color: var(--red); font-weight: 600; }
+.sheet { background: var(--card); border: 2px solid var(--ink); border-radius: 8px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: .55rem .8rem; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:nth-child(2), td:nth-child(2) { text-align: left; white-space: normal; min-width: 10rem; }
+thead th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 2px solid var(--ink); }
+tbody tr:last-child td { border-bottom: 0; }
+td.tot { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; color: var(--ink); }
+td.mark { font-family: var(--font-pen); font-size: 1.7rem; color: var(--red); line-height: 1; }
+td.rank { color: var(--muted); }
+.empty { padding: 2rem 1rem; text-align: center; color: var(--muted); }
+textarea { width: 100%; min-height: 9rem; font: .85rem ui-monospace, Consolas, monospace; border: 2px solid var(--ink); border-radius: 8px; padding: .6rem; }
+</style>
+</head>
+<body>
+<header><span class="brand">Bell to Bell</span><span>Teacher's register</span></header>
+<main>
+  <h1>Results</h1>
+  <div class="sum"><span><b id="n">0</b>students finished</span><span><b id="avg">0</b>average score</span><span><b id="best">0</b>best score</span></div>
+  <div class="bar">
+    <button id="csv" type="button">Show as CSV</button>
+    <button id="clear" type="button" class="danger">Clear all results</button>
+    <span id="status" role="status">Loading…</span>
+  </div>
+  <div class="sheet">
+    <table>
+      <thead><tr><th>#</th><th>Student</th><th>Puzzle</th><th>Sort</th><th>Total</th><th>Mark</th><th>Time</th><th>Finished</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty">No results yet. They appear here as students finish the game.</div>
+  </div>
+  <textarea id="csv-box" hidden readonly aria-label="Results as CSV"></textarea>
+</main>
+<script>
+const key = new URLSearchParams(location.search).get('key') || '';
+const $ = id => document.getElementById(id);
+let data = { max: 190, results: [] };
+
+const mark = (t, max) => { const p = t / max; return p >= .9 ? 5 : p >= .72 ? 4 : p >= .5 ? 3 : 2; };
+const mmss = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+const sorted = () => data.results.slice().sort((a, b) => b.total - a.total || a.seconds - b.seconds);
+
+function draw() {
+  const list = sorted(), tb = $('rows');
+  tb.textContent = '';
+  list.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    const cells = [i + 1, r.name, r.puzzle, r.sort, r.total, mark(r.total, data.max), mmss(r.seconds),
+      new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })];
+    const cls = ['rank', '', '', '', 'tot', 'mark', '', ''];
+    cells.forEach((c, k) => { const td = document.createElement('td'); td.textContent = c; if (cls[k]) td.className = cls[k]; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+  $('empty').hidden = list.length > 0;
+  $('n').textContent = list.length;
+  $('avg').textContent = list.length ? Math.round(list.reduce((s, r) => s + r.total, 0) / list.length) : 0;
+  $('best').textContent = list.length ? list[0].total : 0;
+  if (!$('csv-box').hidden) $('csv-box').value = csv();
+}
+function csv() {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  return ['Place,Student,Puzzle,Sort,Total,Mark,Seconds,Finished']
+    .concat(sorted().map((r, i) => [i + 1, q(r.name), r.puzzle, r.sort, r.total, mark(r.total, data.max), r.seconds, r.at].join(','))).join('\n');
+}
+async function load() {
+  try {
+    const r = await fetch('api/results?key=' + encodeURIComponent(key));
+    if (r.status === 403) { $('status').textContent = 'Wrong key. Open this page as /results?key=YOUR_TEACHER_KEY'; $('status').className = 'bad'; return; }
+    if (!r.ok) throw new Error();
+    data = await r.json(); draw();
+    $('status').textContent = 'Updated ' + new Date().toLocaleTimeString() + ' · refreshes every 5 seconds'; $('status').className = '';
+  } catch (_) { $('status').textContent = 'No connection to the server. Retrying…'; $('status').className = 'bad'; }
+}
+$('csv').addEventListener('click', () => {
+  const box = $('csv-box'); box.hidden = !box.hidden;
+  $('csv').textContent = box.hidden ? 'Show as CSV' : 'Hide CSV';
+  if (!box.hidden) { box.value = csv(); box.focus(); box.select(); }
+});
+let sure = false, sureTimer;
+$('clear').addEventListener('click', async () => {
+  const b = $('clear');
+  if (!sure) { sure = true; b.textContent = 'Click again to delete everything'; b.classList.add('sure'); sureTimer = setTimeout(reset, 4000); return; }
+  clearTimeout(sureTimer); reset();
+  await fetch('api/results?key=' + encodeURIComponent(key), { method: 'DELETE' }).catch(() => {});
+  load();
+  function reset() { sure = false; b.textContent = 'Clear all results'; b.classList.remove('sure'); }
+});
+load(); setInterval(load, 5000);
+</script>
+</body>
+</html>

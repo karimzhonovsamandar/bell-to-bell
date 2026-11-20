@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bell to Bell Lesson Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Caveat:wght@600;700&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout idea: a squared school notebook. The 45-minute ruler is the spine of every screen,
+     and the teacher's red pen is the only loud thing on the page. Single light theme by choice. */
+  --paper: #f8faf6;
+  --grid: #d6e1f0;
+  --ink: #1d2f7a;
+  --text: #22262e;
+  --muted: #5a6373;
+  --red: #d12a2f;
+  --green: #1c7a4a;
+  --cover: #1f4a3a;
+  --card: #ffffff;
+  --line: #b7c3d6;
+  --font-display: 'Bricolage Grotesque', 'Trebuchet MS', sans-serif;
+  --font-body: 'Onest', 'Segoe UI', system-ui, sans-serif;
+  --font-pen: 'Caveat', 'Segoe Print', 'Comic Sans MS', cursive;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { font-size: clamp(16px, 0.55vw + 11px, 21px); }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font-body);
+  color: var(--text);
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 1.5rem 1.5rem;
+  line-height: 1.45;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.05; }
+p { margin: 0; }
+
+/* ---------- HUD: notebook cover + class register ---------- */
+.hud { position: sticky; top: 0; z-index: 5; }
+.top {
+  background: var(--cover);
+  color: #fff;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding: .55rem clamp(16px, 3vw, 2.5rem);
+}
+.brand {
+  font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; letter-spacing: -.01em;
+  background: var(--paper); color: var(--ink);
+  padding: .2rem .7rem; border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+}
+.steps { display: flex; gap: .35rem; margin: 0; padding: 0; list-style: none; flex-wrap: wrap; }
+.steps li {
+  font-size: .8rem; font-weight: 600; padding: .2rem .65rem; border-radius: 99px;
+  border: 1px solid rgba(255,255,255,.35); color: rgba(255,255,255,.75);
+}
+.steps li.on { background: #fff; color: var(--cover); border-color: #fff; }
+.steps li.past { color: #fff; border-color: rgba(255,255,255,.7); }
+.top .spacer { flex: 1; }
+.ghost {
+  background: transparent; border: 1px solid rgba(255,255,255,.45); color: #fff;
+  font-size: .8rem; font-weight: 600; padding: .3rem .75rem; border-radius: 6px;
+}
+.ghost:hover { background: rgba(255,255,255,.14); }
+.ghost.warn { border-color: #fff; background: var(--red); }
+
+.clock {
+  position: relative; height: .9rem; background-color: var(--card);
+  border-bottom: 1px solid var(--line);
+  background-image:
+    repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px calc(100% / 45)),
+    repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px calc(100% / 9));
+  background-size: 100% 35%, 100% 70%;
+  background-position: left bottom, left bottom;
+  background-repeat: no-repeat;
+}
+.clock i {
+  position: absolute; top: 0; bottom: 0; left: 0; width: var(--p, 0%);
+  background: color-mix(in srgb, var(--red) 22%, transparent);
+  border-right: 3px solid var(--red);
+  transition: width .5s ease;
+}
+.board {
+  display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr));
+  background: var(--card); border-bottom: 2px solid var(--ink);
+}
+.team {
+  display: flex; align-items: baseline; justify-content: space-between; gap: .6rem;
+  padding: .45rem clamp(12px, 2vw, 1.4rem);
+  border-right: 1px solid var(--line);
+  border-bottom: .3rem solid transparent;
+  min-width: 0;
+}
+.team:last-child { border-right: 0; }
+.team .nm { font-weight: 600; overflow-wrap: anywhere; display: flex; align-items: baseline; gap: .45rem; min-width: 0; }
+.team .nm::before { content: ""; flex: none; width: .65rem; height: .65rem; border-radius: 50%; background: var(--pen); transform: translateY(-.05rem); }
+.team .sc { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; font-variant-numeric: tabular-nums; color: var(--pen); line-height: 1; }
+.team.on { border-bottom-color: var(--red); background: color-mix(in srgb, var(--red) 6%, var(--card)); }
+.team .tag { font-family: var(--font-pen); color: var(--red); font-size: 1.15rem; line-height: 1; white-space: nowrap; }
+
+/* ---------- Page ---------- */
+.page { max-width: 76rem; margin: 0 auto; padding: clamp(1rem, 2.5vw, 2rem) clamp(16px, 3vw, 2.5rem) 1.5rem; }
+.btn {
+  background: var(--ink); color: #fff; border: 0; border-radius: 8px;
+  font-weight: 700; font-size: 1.05rem; padding: .8rem 1.5rem; min-height: 3rem;
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--ink) 60%, #000);
+}
+.btn:hover { filter: brightness(1.12); }
+.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 60%, #000); }
+.btn.good { background: var(--green); box-shadow: 0 3px 0 color-mix(in srgb, var(--green) 60%, #000); }
+.btn.bad { background: var(--red); box-shadow: 0 3px 0 color-mix(in srgb, var(--red) 60%, #000); }
+.btn.quiet { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+
+/* ---------- Setup ---------- */
+.hero { display: grid; gap: 1.5rem; }
+.eyebrow { font-weight: 600; color: var(--muted); font-size: .9rem; letter-spacing: .04em; text-transform: uppercase; }
+.hero h1 { font-size: clamp(3.2rem, 9vw, 7rem); font-weight: 800; color: var(--ink); letter-spacing: -.04em; }
+.hero h1 em { font-family: var(--font-pen); font-style: normal; color: var(--red); font-weight: 700; letter-spacing: 0; padding: 0 .08em; }
+.lede { font-size: 1.2rem; max-width: 60ch; }
+.lesson { display: grid; gap: 0; }
+.rounds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rounds div { padding: .7rem .9rem .8rem; border-left: 2px solid var(--ink); background: color-mix(in srgb, var(--card) 80%, transparent); }
+.rounds div:last-child { border-right: 2px solid var(--ink); }
+.rounds b { font-family: var(--font-display); font-size: 1.35rem; color: var(--ink); display: block; }
+.rounds small { font-size: .78rem; font-weight: 600; color: var(--red); text-transform: uppercase; letter-spacing: .05em; }
+.rounds span { font-size: .92rem; color: var(--muted); display: block; margin-top: .15rem; }
+.lesson .clock { height: 1.6rem; border: 2px solid var(--ink); border-top-width: 2px; }
+.mins { display: flex; justify-content: space-between; font-size: .8rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; padding-top: .2rem; }
+.setup {
+  background: var(--card); border: 2px solid var(--ink); border-radius: 10px;
+  padding: 1.2rem; display: grid; gap: 1rem;
+}
+.setup h2 { font-size: 1.3rem; color: var(--ink); }
+.seg { display: flex; gap: .4rem; flex-wrap: wrap; }
+.seg button {
+  background: var(--card); border: 2px solid var(--line); border-radius: 8px;
+  padding: .5rem 1rem; font-weight: 700; min-width: 3.2rem;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.names { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .6rem; }
+.names label { display: grid; gap: .2rem; font-size: .8rem; font-weight: 600; color: var(--muted); }
+.names input {
+  border: 0; border-bottom: 3px solid var(--pen); background: color-mix(in srgb, var(--pen) 6%, var(--card));
+  padding: .5rem .6rem; font-size: 1.05rem; font-weight: 600; border-radius: 4px 4px 0 0; width: 100%;
+}
+.setup .row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.setup .note { color: var(--muted); font-size: .9rem; }
+
+/* ---------- Round intro ---------- */
+.intro { display: grid; gap: 1.1rem; max-width: 46rem; }
+.intro .no { font-family: var(--font-pen); color: var(--red); font-size: 1.7rem; line-height: 1; }
+.intro h2 { font-size: clamp(2.8rem, 7vw, 5rem); color: var(--ink); font-weight: 800; letter-spacing: -.03em; }
+.intro .what { font-size: 1.2rem; }
+.rules { margin: 0; padding: 0; list-style: none; display: grid; gap: .5rem; }
+.rules li { background: var(--card); border-left: 4px solid var(--ink); padding: .6rem .9rem; border-radius: 0 6px 6px 0; }
+.rules b { color: var(--ink); }
+
+/* ---------- Turn line ---------- */
+.turn { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.turn .who {
+  font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; color: var(--pen);
+  border-bottom: 3px solid var(--pen); overflow-wrap: anywhere;
+}
+.turn .q { font-size: 1.25rem; font-weight: 600; }
+
+/* ---------- Round 1: Puzzle ---------- */
+.r1 { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 1.5rem; align-items: start; }
+.track { margin: 0; padding: 0; list-style: none; display: grid; gap: .28rem; }
+.bell { font-size: .8rem; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: .5rem; }
+.bell::after { content: ""; flex: 1; border-top: 2px dashed var(--red); }
+.slot {
+  display: grid; grid-template-columns: 2.2rem 1fr; align-items: center; gap: .7rem;
+  background: var(--card); border: 2px dashed var(--line); border-radius: 8px;
+  padding: .3rem .7rem; min-height: 2.4rem;
+}
+.slot .n { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; color: var(--line); text-align: center; font-variant-numeric: tabular-nums; }
+.slot .t { font-weight: 700; color: var(--muted); }
+.slot.filled { border: 2px solid var(--green); }
+.slot.filled .n { color: var(--green); }
+.slot.filled .t { color: var(--text); }
+.slot.next { border: 2px solid var(--red); background: color-mix(in srgb, var(--red) 6%, var(--card)); }
+.slot.next .n { color: var(--red); }
+.slot.next .t { font-family: var(--font-pen); font-size: 1.4rem; color: var(--red); line-height: 1; }
+.slot.fresh { animation: pop .45s ease; }
+.pool { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .7rem; }
+.piece {
+  text-align: left; background: var(--card); border: 2px solid var(--ink); border-radius: 8px;
+  padding: .75rem .9rem; display: grid; gap: .25rem; align-content: start;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.piece:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+.piece b { font-family: var(--font-display); font-size: 1.15rem; color: var(--ink); line-height: 1.15; }
+.piece span { font-size: .88rem; color: var(--muted); }
+.piece.miss { border-color: var(--red); box-shadow: 3px 3px 0 var(--red); animation: shake .4s; }
+
+/* ---------- Round 2: Sort ---------- */
+.r2 { display: grid; gap: 1.3rem; }
+.index {
+  background: var(--card); border: 2px solid var(--ink); border-radius: 8px;
+  box-shadow: 5px 5px 0 var(--ink);
+  padding: 1.3rem 1.5rem 1.6rem; display: grid; gap: .6rem;
+  background-image: linear-gradient(transparent calc(100% - 1px), var(--grid) calc(100% - 1px));
+  background-size: 100% 2.2rem;
+}
+.index .cnt { font-size: .8rem; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+.index p { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.5rem, 3.2vw, 2.4rem); line-height: 1.15; color: var(--text); text-wrap: balance; max-width: 30ch; }
+.cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .6rem; }
+.cat {
+  background: var(--card); border: 2px solid var(--ink); border-radius: 8px;
+  padding: .8rem .7rem; font-weight: 700; font-size: 1.02rem; color: var(--ink); min-height: 3.6rem;
+}
+.cat:not(:disabled):hover { background: var(--ink); color: #fff; }
+.cat:disabled { cursor: default; opacity: .5; }
+.cat.right { opacity: 1; background: var(--green); border-color: var(--green); color: #fff; }
+.cat.wrong { opacity: 1; background: var(--card); border-color: var(--red); color: var(--red); text-decoration: line-through; animation: shake .4s; }
+
+/* ---------- Round 3: Inspector ---------- */
+.plan { background: var(--card); border: 2px solid var(--ink); border-radius: 8px; overflow: hidden; }
+.plan header { padding: .7rem 1rem; border-bottom: 2px solid var(--ink); display: flex; gap: .4rem 1.4rem; flex-wrap: wrap; align-items: baseline; }
+.plan header h3 { font-size: 1.25rem; color: var(--ink); }
+.plan header span { font-size: .9rem; color: var(--muted); }
+.plan header span b { color: var(--text); font-weight: 600; }
+.rows { margin: 0; padding: 0; list-style: none; }
+.rowp {
+  display: grid; grid-template-columns: 4.6rem 10.5rem minmax(0, 1fr) 12rem; gap: .2rem 1rem; align-items: center;
+  padding: .28rem 1rem; border-left: .4rem solid transparent;
+  scroll-margin: 9rem 0 8rem;
+}
+.rowp:last-child { border-bottom: 0; }
+.rowp .tm { font-variant-numeric: tabular-nums; font-size: .88rem; font-weight: 600; color: var(--muted); }
+.rowp .st { font-weight: 700; color: var(--ink); }
+.rowp .tx { font-size: .98rem; }
+.rowp .mk { font-family: var(--font-pen); color: var(--red); font-size: 1.35rem; line-height: 1.05; transform: rotate(-2deg); }
+.rowp.todo .tx, .rowp.todo .st { color: var(--muted); }
+.rowp.cur { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 7%, var(--card)); }
+.rowp.cur .tx { font-weight: 600; }
+.rowp.flag .tx { text-decoration: underline wavy var(--red); text-decoration-thickness: 1.5px; text-underline-offset: .25em; }
+.rowp .mk span { animation: pop .45s ease; display: inline-block; }
+
+.rowp { width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--grid); border-left: .4rem solid transparent; color: var(--text); cursor: default; }
+.rows li:last-child .rowp { border-bottom: 0; }
+.rowp:disabled { color: var(--text); }
+.rowp.live { cursor: pointer; }
+.rowp.live:hover { background: color-mix(in srgb, var(--ink) 7%, var(--card)); border-left-color: var(--ink); }
+.rowp.cur { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 7%, var(--card)); }
+.plan header .left { margin-left: auto; font-weight: 700; color: var(--red); font-variant-numeric: tabular-nums; }
+.timer {
+  margin-left: auto; flex: none; width: 3.2rem; height: 3.2rem; border-radius: 50%; border: 3px solid var(--ink);
+  display: grid; place-content: center; font-family: var(--font-display); font-weight: 800; font-size: 1.5rem;
+  color: var(--ink); background: var(--card); font-variant-numeric: tabular-nums;
+}
+.timer.low { color: var(--red); border-color: var(--red); }
+.fixes { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .5rem; }
+.fix { text-align: left; background: var(--card); border: 2px solid var(--ink); border-radius: 8px; padding: .65rem .9rem; font-weight: 600; }
+.fix:hover { background: var(--ink); color: #fff; }
+
+/* ---------- Dock ---------- */
+.dock {
+  position: sticky; bottom: 0; z-index: 4; margin-top: 1.3rem;
+  background: var(--paper); border: 2px solid var(--ink); border-radius: 10px;
+  padding: .8rem 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  box-shadow: 0 -6px 18px rgba(29, 47, 122, .12);
+}
+.dock .fb { flex: 1 1 18rem; min-width: 0; display: grid; gap: .15rem; }
+.dock .fb b { font-family: var(--font-display); font-size: 1.15rem; }
+.dock .fb.ok b { color: var(--green); }
+.dock .fb.no b { color: var(--red); }
+.dock .fb span { font-size: .98rem; max-width: 70ch; }
+.dock .fb.idle span { color: var(--muted); }
+.dock .acts { display: flex; gap: .6rem; flex-wrap: wrap; }
+
+/* ---------- Final ---------- */
+.final { display: grid; gap: 1.6rem; }
+.win { display: flex; gap: 1.5rem 2.5rem; align-items: center; flex-wrap: wrap; }
+.win .txt { flex: 1 1 22rem; display: grid; gap: .5rem; min-width: 0; }
+.win h2 { font-size: clamp(2.6rem, 7vw, 5.2rem); font-weight: 800; color: var(--ink); letter-spacing: -.03em; overflow-wrap: anywhere; }
+.win p { font-size: 1.2rem; }
+.mark {
+  flex: none; width: 9.5rem; height: 9.5rem; display: grid; place-content: center; text-align: center;
+  border: 4px solid var(--red); border-radius: 47% 53% 55% 45% / 52% 45% 55% 48%;
+  transform: rotate(-7deg); color: var(--red); font-family: var(--font-pen); line-height: .9;
+  animation: pop .6s ease;
+}
+.mark b { font-size: 5.2rem; font-weight: 700; }
+.mark span { font-size: 1.5rem; }
+.sheet { background: var(--card); border: 2px solid var(--ink); border-radius: 8px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: .6rem .9rem; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+thead th { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 2px solid var(--ink); }
+tbody tr:last-child td { border-bottom: 0; }
+td.tot { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; color: var(--ink); }
+td .dot { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; background: var(--pen); margin-right: .5rem; }
+tr.top1 td { background: color-mix(in srgb, var(--red) 6%, var(--card)); font-weight: 700; }
+.final .acts { display: flex; gap: .7rem; flex-wrap: wrap; }
+.send { font-weight: 600; color: var(--muted); display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; }
+.send.ok { color: var(--green); }
+.send.no { color: var(--red); }
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9; }
+
+@keyframes pop { 0% { transform: scale(.6); opacity: 0; } 70% { transform: scale(1.06); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes shake { 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+
+@media (max-width: 860px) {
+  .r1 { grid-template-columns: 1fr; }
+  .slot:not(.filled):not(.next) { display: none; }
+  .rowp { grid-template-columns: 4.2rem minmax(0, 1fr); }
+  .rowp .tx, .rowp .mk { grid-column: 1 / -1; }
+  .rounds span { display: none; }
+}
+@media (max-width: 520px) {
+  .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .team .sc { font-size: 1.3rem; }
+  .team .tag { display: none; }
+  .steps li:not(.on) { display: none; }
+  .mark { width: 7.5rem; height: 7.5rem; }
+  .mark b { font-size: 4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<canvas id="confetti" hidden></canvas>
+
+<script>
+/* ============ Content ============ */
+const STAGES = [
+  { t: 'Greeting & organisation', h: '“Good morning! Who is absent today?”',
+    w: 'Every lesson opens with a greeting, attendance and getting the class ready to work.' },
+  { t: 'Warm-up', h: 'A tongue twister, a chant or quick questions',
+    w: 'A short phonetic or speech drill switches students into the foreign language.' },
+  { t: 'Homework check', h: '“What did you prepare for today?”',
+    w: 'Checking homework links the previous lesson to this one before anything new begins.' },
+  { t: 'Lead-in to the new topic', h: '“Look at the picture. What is today’s lesson about?”',
+    w: 'The teacher raises interest and states the topic and aims just before the new material.' },
+  { t: 'Presentation of new material', h: 'New words or grammar shown in context',
+    w: 'New language is introduced once the class is tuned in and knows the aim.' },
+  { t: 'Controlled practice', h: 'Drills, gap-fills, matching',
+    w: 'Straight after presentation students need accuracy work with support.' },
+  { t: 'Free practice', h: 'Role-play, discussion, students’ own ideas',
+    w: 'When the form is accurate, students use it freely to communicate (production).' },
+  { t: 'Closing', h: 'Summary, marks and the home task',
+    w: 'Before the bell the teacher sums up, comments on marks and sets homework.' }
+];
+
+const CATS = [
+  { id: 'warm', n: 'Warm-up' },
+  { id: 'pres', n: 'Presentation' },
+  { id: 'ctrl', n: 'Controlled practice' },
+  { id: 'free', n: 'Free practice' },
+  { id: 'close', n: 'Closing' }
+];
+
+const CARDS = [
+  { x: 'The class says a tongue twister in chorus, faster each time.', c: 'warm',
+    w: 'A phonetic drill tunes the ear and the tongue in the first minutes.' },
+  { x: 'The teacher fires quick questions: “What day is it? What’s the weather like?”', c: 'warm',
+    w: 'A speech drill gets everyone talking before the main work starts.' },
+  { x: 'The teacher shows pictures and elicits the meaning of new words.', c: 'pres',
+    w: 'Students meet new language for the first time and work out what it means.' },
+  { x: 'The teacher draws a timeline on the board to show how the Present Perfect works.', c: 'pres',
+    w: 'The teacher clarifies the meaning and form of a new structure.' },
+  { x: 'Students fill in the gaps with the correct form of the verb.', c: 'ctrl',
+    w: 'There is one correct answer and the focus is on accuracy.' },
+  { x: 'Choral and individual repetition of the new phrases.', c: 'ctrl',
+    w: 'Drilling is the most controlled kind of practice.' },
+  { x: 'Students match the new words with their definitions.', c: 'ctrl',
+    w: 'The choice is limited and supported: accuracy comes before fluency.' },
+  { x: 'Role-play “At the café”: students act it out with their own ideas.', c: 'free',
+    w: 'Students choose the language themselves. The focus is on communication.' },
+  { x: 'Pairs discuss their plans for the weekend and report to the class.', c: 'free',
+    w: 'Real exchange of information with no fixed answers is production.' },
+  { x: 'Students write a short email to a friend about their holiday.', c: 'free',
+    w: 'Students create their own text. The message matters more than the form.' },
+  { x: 'Students finish the sentence: “Today I learned…”', c: 'close',
+    w: 'Reflection sums up the lesson and shows students their progress.' },
+  { x: 'The teacher explains the home task and comments on the marks.', c: 'close',
+    w: 'Homework and assessment belong to the final minutes of the lesson.' }
+];
+
+const PLAN = [
+  { tm: 'Aim', st: 'Lesson aim', x: '“To do exercises 1–7 on page 34.”', ok: false,
+    m: 'An aim is a result, not a page!',
+    w: 'An aim says what students will be able to do, for example: “By the end of the lesson students will be able to talk about their daily routine in the Present Simple.”' },
+  { tm: '2 min', st: 'Greeting', x: 'The teacher greets the class, checks attendance and asks the date.', ok: true,
+    m: '✓ good',
+    w: 'A short organisational moment. One or two minutes is enough.' },
+  { tm: '3 min', st: 'Warm-up', x: 'Quick questions in a chain: “When do you get up?” Then a short chant about the days of the week.', ok: true,
+    m: '✓ lively',
+    w: 'Short, energetic and already connected with the topic of the lesson.' },
+  { tm: '15 min', st: 'Homework check', x: 'Every student reads the whole home text aloud, one by one.', ok: false,
+    m: '15 minutes?! Too long',
+    w: 'A third of the lesson is gone while most students just wait. Check selectively or in pairs in 3–5 minutes.' },
+  { tm: '3 min', st: 'Speaking', x: 'Students present their own dialogues with he/she + verb-s. This form has not been taught yet.', ok: false,
+    m: 'Too early!',
+    w: 'Production comes after presentation and practice. Students cannot use language they have not met.' },
+  { tm: '7 min', st: 'Presentation', x: 'Pictures of Tom’s day. The teacher elicits sentences; students notice the -s ending and formulate the rule.', ok: true,
+    m: '✓ in context',
+    w: 'The grammar appears in context and students discover the rule themselves.' },
+  { tm: '2 min', st: 'Drill', x: 'Choral, then individual repetition: “He gets up at seven. She has breakfast at eight.”', ok: true,
+    m: '✓ good',
+    w: 'A quick drill fixes the new form right after the presentation.' },
+  { tm: '4 min', st: 'Controlled practice', x: 'Gap-fill in pairs, then a whole-class check. The teacher monitors.', ok: true,
+    m: '✓ pair work',
+    w: 'Accuracy work with support. Pair work gives every student time to speak.' },
+  { tm: '4 min', st: 'Free practice', x: 'Pairs interview each other about their day. The teacher stops them after every sentence to correct each mistake.', ok: false,
+    m: 'Don’t interrupt fluency',
+    w: 'In a fluency activity the teacher monitors, takes notes and corrects after the task (delayed correction).' },
+  { tm: '3 min', st: 'New vocabulary', x: 'The teacher introduces 15 new words from the next unit.', ok: false,
+    m: 'No time to practise',
+    w: 'New material at the end of a lesson cannot be practised and overloads students. The last minutes are for summing up.' },
+  { tm: '2 min', st: 'Reflection & marks', x: 'Students finish “Today I can…”. The teacher gives marks and explains them.', ok: true,
+    m: '✓ with comments',
+    w: 'Students see their result, and the marks are explained, not just announced.' },
+  { tm: 'After the bell', st: 'Homework', x: 'The bell rings. The teacher shouts the page number while students are packing their bags.', ok: false,
+    m: 'Before the bell!',
+    w: 'Homework is set before the bell: written on the board and explained, with an example if needed.' }
+];
+
+const FIXES = {
+  0: { o: ['“By the end of the lesson students will be able to talk about their daily routine.”', '“To finish Unit 3 of the textbook.”', '“To do exercises 1–10 instead of 1–7.”'], a: 0 },
+  3: { o: ['Give it 25 minutes so that nobody is left out.', 'Check selectively or in pairs in 3–5 minutes.', 'Stop checking homework at all.'], a: 1 },
+  4: { o: ['Make it longer: 10 minutes instead of 3.', 'Let students do it in their native language.', 'Move it after the presentation and practice.'], a: 2 },
+  8: { o: ['Monitor, take notes and correct after the task.', 'Give a mark for every error to keep students careful.', 'Let only the strongest pair speak in front of the class.'], a: 0 },
+  9: { o: ['Introduce 30 words to save time next lesson.', 'Dictate the words quickly, without practice.', 'Use these minutes to sum up; keep the new words for the next lesson.'], a: 2 },
+  11: { o: ['Shout it louder so everyone hears.', 'Set it before the bell: write it on the board and explain it.', 'Give homework only to students who ask for it.'], a: 1 }
+};
+const HUNT_TIME = 30, MISTAKES = PLAN.filter(l => !l.ok).length;
+
+const ROUNDS = [
+  { n: 'Puzzle', pts: 10,
+    what: 'Eight stages of a lesson are mixed up. Build the lesson from the first bell to the last.',
+    rules: ['Choose the stage that comes <b>next</b>.', '<b>+10</b> for the right stage, <b>−5</b> for a wrong one.'],
+    multi: 'After every pick the turn passes to the next team.' },
+  { n: 'Sort', pts: 10,
+    what: 'Twelve classroom activities, one card at a time. Decide which stage of the lesson each one belongs to.',
+    rules: ['Five stages to choose from.', '<b>+10</b> for a correct answer. One attempt per card.'],
+    multi: 'Teams answer in turn, one card each.' }
+];
+const MAX_TOTAL = 7 * 10 + 12 * 10;
+const PENS = ['#2147c7', '#7b3fc4', '#0f7f86', '#b06a00'];
+const DEFAULTS = ['Team A', 'Team B', 'Team C', 'Team D'];
+
+/* ============ State ============ */
+let S;
+function fresh(keep) {
+  return {
+    screen: 'setup', teamCount: 1, names: keep ? keep.names.slice() : [''],
+    teams: [], round: 0, turn: 0, fb: null, done: false, ask: false, r1: null, r2: null, r3: null, sent: null, t0: 0
+  };
+}
+const app = document.getElementById('app');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const range = n => Array.from({ length: n }, (_, i) => i);
+const solo = () => S.teams.length === 1;
+const cur = () => S.teams[S.turn];
+
+function startGame() {
+  S.teams = range(S.teamCount).map(i => ({ name: (S.names[i] || '').trim() || 'Student', score: 0, rounds: [0, 0, 0] }));
+  S.t0 = Date.now(); S.sent = null;
+  S.round = 0; S.screen = 'intro'; S.fb = null; S.done = false; S.ask = false;
+}
+function startRound() {
+  S.turn = S.round % S.teams.length; S.fb = null; S.done = false; S.screen = 'play';
+  if (S.round === 0) {
+    let pool = shuffle(range(STAGES.length));
+    if (pool[0] === 0) pool.push(pool.shift());
+    S.r1 = { placed: 0, pool, miss: null, fresh: -1 };
+  }
+  if (S.round === 1) S.r2 = { order: shuffle(range(CARDS.length)), i: 0, pick: null };
+  if (S.round === 2) S.r3 = { found: [], cleared: [], phase: 'hunt', sel: -1, left: HUNT_TIME };
+}
+function award(p) {
+  const t = cur(), before = t.score;
+  t.score = Math.max(0, t.score + p);
+  t.rounds[S.round] += t.score - before;
+}
+function nextTurn() { S.turn = (S.turn + 1) % S.teams.length; }
+const passNote = () => solo() ? '' : ' The turn passes to ' + S.teams[(S.turn + 1) % S.teams.length].name + '.';
+
+function pickStage(id) {
+  const r = S.r1; if (S.done || !r.pool.includes(id)) return;
+  const who = cur().name, st = STAGES[id];
+  if (id === r.placed) {
+    award(10);
+    r.pool = r.pool.filter(x => x !== id); r.placed++; r.miss = null; r.fresh = id;
+    let text = st.w;
+    if (r.pool.length === 1) {
+      const last = STAGES[r.pool[0]];
+      r.pool = []; r.placed++; S.done = true;
+      text += ' The last stage falls into place: ' + last.t + '. ' + last.w;
+    }
+    S.fb = { ok: true, title: 'Stage ' + (id + 1) + ': ' + st.t + '. +10 for ' + who, text };
+    if (!S.done) nextTurn();
+  } else {
+    award(-5); r.miss = id; r.fresh = -1;
+    S.fb = { ok: false, title: 'Not “' + st.t + '” yet. −5 for ' + who, text: 'Something else has to happen first.' + passNote() };
+    nextTurn();
+  }
+}
+function pickCat(c) {
+  const r = S.r2; if (r.pick) return;
+  const card = CARDS[r.order[r.i]], right = CATS.find(k => k.id === card.c).n, ok = c === card.c;
+  if (ok) award(10);
+  r.pick = c;
+  S.fb = { ok, title: ok ? 'Correct: ' + right + '. +10 for ' + cur().name : 'Not quite. This is ' + right + '.', text: card.w };
+  if (r.i === CARDS.length - 1) S.done = true;
+}
+function huntPick(i) {
+  const r = S.r3; if (S.done || r.phase !== 'hunt' || r.found.includes(i) || r.cleared.includes(i)) return;
+  const line = PLAN[i]; r.sel = i;
+  if (!line.ok) {
+    award(10); r.found.push(i); r.phase = 'fix';
+    S.fb = { ok: true, title: 'Mistake found! +10 for ' + cur().name, text: 'Now choose the best way to fix it for 10 more points.' };
+  } else {
+    award(-5); r.cleared.push(i); r.phase = 'result';
+    S.fb = { ok: false, title: 'This step is fine. −5 for ' + cur().name, text: line.w + passNote() };
+  }
+}
+function fixPick(k) {
+  const r = S.r3; if (r.phase !== 'fix') return;
+  const line = PLAN[r.sel], ok = k === FIXES[r.sel].a;
+  if (ok) award(10);
+  r.phase = 'result';
+  S.fb = { ok, title: ok ? 'Good fix. +10 more for ' + cur().name : 'Not the best fix. No bonus.', text: line.w };
+  if (r.found.length === MISTAKES) S.done = true;
+}
+let ticker = null;
+function syncTimer() {
+  const run = S.screen === 'play' && S.round === 2 && S.r3 && S.r3.phase === 'hunt' && !S.done;
+  if (run && !ticker) ticker = setInterval(onTick, 1000);
+  if (!run && ticker) { clearInterval(ticker); ticker = null; }
+}
+function onTick() {
+  const r = S.r3; r.left--;
+  if (r.left <= 0) {
+    r.left = 0; r.phase = 'result'; r.sel = -1;
+    S.fb = { ok: false, title: 'Time is up for ' + cur().name, text: 'No pick this time.' + passNote() };
+    render();
+  } else {
+    const el = document.getElementById('timer');
+    if (el) { el.textContent = r.left; el.classList.toggle('low', r.left <= 10); }
+  }
+}
+
+/* ============ Views ============ */
+function progress() {
+  if (S.screen === 'setup') return 0;
+  if (S.screen === 'final') return 100;
+  let p = 0;
+  if (S.screen === 'play') {
+    if (S.round === 0) p = S.r1.placed / STAGES.length;
+    if (S.round === 1) p = (S.r2.i + (S.r2.pick ? 1 : 0)) / CARDS.length;
+    if (S.round === 2) p = S.r3.found.length / MISTAKES;
+  }
+  return (S.round + p) / ROUNDS.length * 100;
+}
+function hud() {
+  const playing = S.screen !== 'setup';
+  const steps = ROUNDS.map((r, i) => {
+    const cls = S.screen === 'final' || i < S.round ? 'past' : (i === S.round && playing ? 'on' : '');
+    return '<li class="' + cls + '">' + (i + 1) + ' · ' + r.n + '</li>';
+  }).join('');
+  const restart = !playing ? '' : S.ask
+    ? '<button class="ghost warn" data-act="restart-yes">Yes, restart</button><button class="ghost" data-act="restart-no">Keep playing</button>'
+    : '<button class="ghost" data-act="restart-ask">Restart</button>';
+  let board = '';
+  if (playing) {
+    board = '<div class="board" style="--n:' + S.teams.length + '">' + S.teams.map((t, i) => {
+      const on = S.screen === 'play' && !S.done && i === S.turn;
+      return '<div class="team' + (on ? ' on' : '') + '" style="--pen:' + PENS[i] + '"><span class="nm">' + esc(t.name) +
+        (on && !solo() ? ' <span class="tag">your turn</span>' : '') + '</span><span class="sc">' + t.score + '</span></div>';
+    }).join('') + '</div>';
+  }
+  return '<div class="hud"><div class="top"><span class="brand">Bell to Bell</span><ol class="steps">' + steps +
+    '</ol><span class="spacer"></span>' + restart + '<button class="ghost" data-act="fs">Full screen</button></div>' +
+    '<div class="clock" role="img" aria-label="Game progress"><i style="--p:' + progress().toFixed(1) + '%"></i></div>' + board + '</div>';
+}
+
+function vSetup() {
+  const seg = [1, 2, 3, 4].map(n => '<button type="button" data-act="count" data-v="' + n + '" aria-pressed="' + (S.teamCount === n) + '">' + n + '</button>').join('');
+  const names = range(S.teamCount).map(i =>
+    '<label style="--pen:' + PENS[i] + '" for="team-' + i + '">Team ' + (i + 1) + '<input id="team-' + i + '" data-name="' + i + '" maxlength="18" value="' + esc(S.names[i]) + '" autocomplete="off"></label>').join('');
+  return '<section class="hero">' +
+    '<p class="eyebrow">Classroom game · 2 rounds · 10–15 minutes</p>' +
+    '<h1>Bell <em>to</em> Bell</h1>' +
+    '<p class="lede">How is a foreign language lesson built, from the first bell to the last? Put the stages of a lesson in order, then sort classroom activities by stage.</p>' +
+    '<div class="lesson"><div class="rounds">' +
+      ROUNDS.map((r, i) => '<div><small>Round ' + (i + 1) + '</small><b>' + r.n + '</b><span>' +
+        ['Order the stages of a lesson', 'Match activities to stages', 'Find mistakes in a lesson plan'][i] + '</span></div>').join('') +
+    '</div><div class="clock"></div><div class="mins"><span>0 min</span><span>bell to bell</span><span>45 min</span></div></div>' +
+    '<form class="setup" id="setup-form"><h2>Who is playing?</h2>' +
+      '<div class="names"><label style="--pen:' + PENS[0] + '" for="team-0">Your first and last name<input id="team-0" data-name="0" maxlength="40" required value="' + esc(S.names[0]) + '" autocomplete="name"></label></div>' +
+      '<div class="row"><button class="btn" type="submit">Start the lesson</button><span class="note">You play on your own. Your result goes to the teacher at the end.</span></div>' +
+    '</form></section>';
+}
+
+function vIntro() {
+  const r = ROUNDS[S.round], starter = S.teams[S.round % S.teams.length];
+  const rules = r.rules.slice(); if (!solo()) rules.push(r.multi + ' <b>' + esc(starter.name) + '</b> starts.');
+  return '<section class="intro"><p class="no">Round ' + (S.round + 1) + ' of ' + ROUNDS.length + '</p><h2>' + r.n + '</h2>' +
+    '<p class="what">' + r.what + '</p><ul class="rules">' + rules.map(x => '<li>' + x + '</li>').join('') + '</ul>' +
+    '<div><button class="btn" data-act="begin">Start round ' + (S.round + 1) + '</button></div></section>';
+}
+
+function turnLine(q) {
+  return '<div class="turn"><span class="who" style="--pen:' + PENS[S.turn] + '">' + esc(cur().name) + '</span><span class="q">' + q + '</span></div>';
+}
+function dock(idle, buttons) {
+  const fb = S.fb
+    ? '<div class="fb ' + (S.fb.ok ? 'ok' : 'no') + '" role="status"><b>' + (S.fb.ok ? '✓ ' : '✗ ') + esc(S.fb.title) + '</b><span>' + esc(S.fb.text) + '</span></div>'
+    : '<div class="fb idle"><span>' + idle + '</span></div>';
+  const next = S.done ? '<button class="btn" data-act="nextround">' + (S.round === ROUNDS.length - 1 ? 'See the results' : 'Go to round ' + (S.round + 2)) + '</button>' : (buttons || '');
+  return '<div class="dock">' + fb + (next ? '<div class="acts">' + next + '</div>' : '') + '</div>';
+}
+
+function vR1() {
+  const r = S.r1;
+  const slots = STAGES.map((s, i) => {
+    if (i < r.placed) return '<li class="slot filled' + (i === r.fresh || (S.done && i === STAGES.length - 1) ? ' fresh' : '') + '"><span class="n">' + (i + 1) + '</span><span class="t">' + s.t + '</span></li>';
+    if (i === r.placed) return '<li class="slot next"><span class="n">' + (i + 1) + '</span><span class="t">what comes here?</span></li>';
+    return '<li class="slot"><span class="n">' + (i + 1) + '</span><span class="t"></span></li>';
+  }).join('');
+  const pool = r.pool.map(id => '<button class="piece' + (r.miss === id ? ' miss' : '') + '" data-act="r1" data-v="' + id + '"><b>' + STAGES[id].t + '</b><span>' + STAGES[id].h + '</span></button>').join('');
+  return (S.done ? '' : turnLine('Which stage comes next?')) +
+    '<div class="r1"><ol class="track"><li class="bell">First bell</li>' + slots + '<li class="bell">Last bell</li></ol>' +
+    '<div class="pool">' + pool + '</div></div>' +
+    dock('Tap the card with the next stage of the lesson.');
+}
+
+function vR2() {
+  const r = S.r2, card = CARDS[r.order[r.i]];
+  const cats = CATS.map(k => {
+    let cls = 'cat';
+    if (r.pick) { if (k.id === card.c) cls += ' right'; else if (k.id === r.pick) cls += ' wrong'; }
+    return '<button class="' + cls + '" data-act="r2" data-v="' + k.id + '"' + (r.pick ? ' disabled' : '') + '>' + k.n + '</button>';
+  }).join('');
+  return turnLine('Which stage of the lesson is this?') +
+    '<div class="r2"><div class="index"><span class="cnt">Card ' + (r.i + 1) + ' of ' + CARDS.length + '</span><p>' + card.x + '</p></div>' +
+    '<div class="cats">' + cats + '</div></div>' +
+    dock('Choose one of the five stages.', r.pick ? '<button class="btn" data-act="r2next">Next card</button>' : '');
+}
+
+function vR3() {
+  const r = S.r3, hunting = r.phase === 'hunt' && !S.done;
+  const rows = PLAN.map((l, i) => {
+    const found = r.found.includes(i), cleared = r.cleared.includes(i) || (S.done && l.ok);
+    const live = hunting && !found && !cleared;
+    let cls = 'rowp';
+    if (found) cls += ' flag'; if (i === r.sel) cls += ' cur'; if (live) cls += ' live';
+    const mk = found || cleared ? (i === r.sel ? '<span>' + l.m + '</span>' : l.m) : '';
+    return '<li><button class="' + cls + '"' + (i === r.sel ? ' id="cur-row"' : '') + ' data-act="r3" data-v="' + i + '"' + (live ? '' : ' disabled') + '>' +
+      '<span class="tm">' + l.tm + '</span><span class="st">' + l.st + '</span><span class="tx">' + l.x + '</span><span class="mk">' + mk + '</span></button></li>';
+  }).join('');
+  const q = S.done ? 'All six mistakes are found.' : r.phase === 'hunt' ? 'Find a mistake in the plan.' : r.phase === 'fix' ? 'How would you fix it?' : '';
+  const turn = '<div class="turn"><span class="who" style="--pen:' + PENS[S.turn] + '">' + esc(cur().name) + '</span><span class="q">' + q + '</span>' +
+    (hunting ? '<span class="timer' + (r.left <= 10 ? ' low' : '') + '" id="timer" aria-label="Seconds left">' + r.left + '</span>' : '') + '</div>';
+  let d;
+  if (r.phase === 'fix') {
+    d = '<div class="dock"><div class="fb ok" role="status"><b>✓ ' + esc(S.fb.title) + '</b><span>' + esc(S.fb.text) + '</span></div><div class="fixes">' +
+      FIXES[r.sel].o.map((o, k) => '<button class="fix" data-act="r3fix" data-v="' + k + '">' + o + '</button>').join('') + '</div></div>';
+  } else {
+    d = dock('Tap the step you think is a mistake. A wrong accusation costs 5 points.',
+      r.phase === 'result' ? '<button class="btn" data-act="r3next">' + (solo() ? 'Keep hunting' : 'Next team') + '</button>' : '');
+  }
+  return turn +
+    '<div class="plan"><header><h3>Lesson plan</h3><span>Grade <b>6</b></span><span>Topic <b>My Daily Routine</b></span><span>Grammar <b>Present Simple, he/she + -s</b></span><span>Length <b>45 minutes</b></span>' +
+    '<span class="left">Mistakes found: ' + r.found.length + ' of ' + MISTAKES + '</span></header>' +
+    '<ol class="rows">' + rows + '</ol></div>' + d;
+}
+
+function vFinal() {
+  const ranked = S.teams.map((t, i) => ({ ...t, i })).sort((a, b) => b.score - a.score);
+  const best = ranked[0].score, winners = ranked.filter(t => t.score === best);
+  let head, sub, mark;
+  if (solo()) {
+    const pct = best / MAX_TOTAL;
+    const g = pct >= .9 ? ['5', 'Excellent!'] : pct >= .72 ? ['4', 'Good'] : pct >= .5 ? ['3', 'Not bad'] : ['2', 'Revise!'];
+    head = esc(ranked[0].name) + ': ' + best + ' of ' + MAX_TOTAL;
+    sub = 'The lesson is over. Here is your mark for lesson planning.';
+    mark = g;
+  } else if (winners.length > 1) {
+    head = 'A tie: ' + winners.map(t => esc(t.name)).join(' & ');
+    sub = 'Both finish the lesson with ' + best + ' points.';
+    mark = ['5', 'for both!'];
+  } else {
+    head = esc(winners[0].name) + ' wins';
+    sub = 'First place with ' + best + ' points. The lesson is over, the bell has rung.';
+    mark = ['5', 'Excellent!'];
+  }
+  const rows = ranked.map(t => '<tr class="' + (t.score === best ? 'top1' : '') + '"><td><span class="dot" style="--pen:' + PENS[t.i] + '"></span>' + esc(t.name) + '</td>' +
+    t.rounds.slice(0, ROUNDS.length).map(x => '<td>' + x + '</td>').join('') + '<td class="tot">' + t.score + '</td></tr>').join('');
+  return '<section class="final"><div class="win"><div class="txt"><p class="eyebrow">Final score</p><h2>' + head + '</h2><p>' + sub + '</p></div>' +
+    '<div class="mark" aria-label="Mark ' + mark[0] + '"><b>' + mark[0] + '</b><span>' + mark[1] + '</span></div></div>' +
+    sendLine() + '<div class="sheet"><table><thead><tr><th>Team</th><th>Puzzle</th><th>Sort</th><th>Total</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '<div class="acts"><button class="btn" data-act="again">Play again</button><button class="btn quiet" data-act="teams">Change name</button></div></section>';
+}
+
+function sendLine() {
+  if (S.sent === 'ok') return '<p class="send ok" role="status">✓ Your result has been sent to the teacher.</p>';
+  if (S.sent === 'fail') return '<p class="send no" role="status">✗ The result was not sent. Check your internet connection. <button class="btn quiet" data-act="resend">Send again</button></p>';
+  return '<p class="send" role="status">Sending your result to the teacher…</p>';
+}
+function sendResult() {
+  const t = S.teams[0]; S.sent = 'sending';
+  fetch('api/results', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: t.name, puzzle: t.rounds[0], sort: t.rounds[1], seconds: Math.round((Date.now() - S.t0) / 1000) })
+  }).then(r => { if (!r.ok) throw new Error('refused'); S.sent = 'ok'; })
+    .catch(() => { S.sent = 'fail'; })
+    .finally(() => { if (S.screen === 'final') render(); });
+}
+function render() {
+  let body;
+  if (S.screen === 'setup') body = vSetup();
+  else if (S.screen === 'intro') body = vIntro();
+  else if (S.screen === 'final') body = vFinal();
+  else body = [vR1, vR2, vR3][S.round]();
+  app.innerHTML = hud() + '<main class="page">' + body + '</main>';
+  syncTimer();
+  const row = document.getElementById('cur-row');
+  if (row) row.scrollIntoView({ block: 'nearest' });
+}
+
+/* ============ Events ============ */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const a = b.dataset.act, v = b.dataset.v;
+  let top = false;
+  if (a === 'fs') {
+    try {
+      const p = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+      if (p && p.catch) p.catch(() => {});
+    } catch (_) {}
+    return;
+  }
+  if (a !== 'restart-ask') S.ask = false;
+  if (a === 'count') S.teamCount = +v;
+  else if (a === 'begin') { startRound(); top = true; }
+  else if (a === 'r1') pickStage(+v);
+  else if (a === 'r2') pickCat(v);
+  else if (a === 'r2next') { S.r2.i++; S.r2.pick = null; S.fb = null; nextTurn(); }
+  else if (a === 'r3') huntPick(+v);
+  else if (a === 'r3fix') fixPick(+v);
+  else if (a === 'r3next') { nextTurn(); S.r3.phase = 'hunt'; S.r3.sel = -1; S.r3.left = HUNT_TIME; S.fb = null; }
+  else if (a === 'nextround') {
+    S.fb = null; S.done = false; top = true;
+    if (S.round === ROUNDS.length - 1) { S.screen = 'final'; confetti(); sendResult(); } else { S.round++; S.screen = 'intro'; }
+  }
+  else if (a === 'again') { startGame(); top = true; document.getElementById('confetti').hidden = true; }
+  else if (a === 'teams' || a === 'restart-yes') { S = fresh(S); top = true; document.getElementById('confetti').hidden = true; }
+  else if (a === 'restart-ask') S.ask = true;
+  else if (a === 'resend') sendResult();
+  render();
+  if (top) window.scrollTo(0, 0);
+});
+document.addEventListener('input', e => {
+  const i = e.target.dataset && e.target.dataset.name;
+  if (i !== undefined) S.names[+i] = e.target.value;
+});
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.id === 'setup-form') { startGame(); render(); window.scrollTo(0, 0); }
+});
+
+/* ============ Confetti (paper scraps in pen colours) ============ */
+function confetti() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c = document.getElementById('confetti'), ctx = c.getContext('2d');
+  c.hidden = false; c.width = innerWidth; c.height = innerHeight;
+  const cols = ['#d12a2f', '#1d2f7a', '#1c7a4a', '#2147c7', '#b06a00'];
+  const bits = range(130).map(() => ({
+    x: Math.random() * c.width, y: -20 - Math.random() * c.height * .6, w: 6 + Math.random() * 8, h: 10 + Math.random() * 10,
+    vy: 2 + Math.random() * 3.5, vx: -1 + Math.random() * 2, a: Math.random() * 6, va: -.12 + Math.random() * .24, col: cols[Math.floor(Math.random() * cols.length)]
+  }));
+  const t0 = performance.now();
+  (function tick(t) {
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const b of bits) {
+      b.x += b.vx; b.y += b.vy; b.a += b.va;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a); ctx.fillStyle = b.col; ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); ctx.restore();
+    }
+    if (t - t0 < 5000) requestAnimationFrame(tick); else { ctx.clearRect(0, 0, c.width, c.height); c.hidden = true; }
+  })(t0);
+}
+
+/* ============ Boot (keeps the game state across a republish) ============ */
+function boot(saved) {
+  S = saved && saved.screen ? saved : fresh();
+  render();
+}
+window.claude?.hot?.snapshot?.(() => S);
+if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
+</script>
+</body>
+</html>

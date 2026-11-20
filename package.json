@@ -1,0 +1,8 @@
+{
+  "name": "bell-to-bell",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bell to Bell lesson game with a results page for the teacher",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
