@@ -324,6 +324,36 @@ tr.top1 td { background: color-mix(in srgb, var(--red) 6%, var(--card)); font-we
   .mark { width: 7.5rem; height: 7.5rem; }
   .mark b { font-size: 4rem; }
 }
+.turn .who { display: none; }
+@media (max-width: 860px) {
+  .top { padding-top: .4rem; padding-bottom: .4rem; gap: .5rem; }
+  .top [data-act="fs"] { display: none; }
+  .board { grid-template-columns: 1fr; }
+  .team { padding-top: .3rem; padding-bottom: .2rem; }
+  .turn { margin-bottom: .7rem; }
+  .turn .q { font-size: 1.15rem; }
+  .page { display: flex; flex-direction: column; }
+  .dock { position: static; box-shadow: none; padding: .7rem .8rem; scroll-margin: 8rem 0 1rem; }
+  .dock:has(.fb.idle):not(:has(.acts)) { display: none; }
+  .page:has(.r1) .turn { order: -2; }
+  .page:has(.r1) .dock { order: -1; margin: 0 0 .9rem; }
+  .r1 { gap: 1rem; }
+  .slot { min-height: 2rem; padding: .15rem .6rem; grid-template-columns: 1.6rem 1fr; }
+  .slot .n { font-size: 1.05rem; }
+  .slot .t { font-size: .92rem; }
+  .slot.next .t { font-size: 1.2rem; }
+  .pool { grid-template-columns: 1fr 1fr; gap: .55rem; }
+  .piece { padding: .55rem .65rem; }
+  .piece b { font-size: 1rem; }
+  .piece span { font-size: .8rem; }
+  .index { padding: 1rem 1.1rem 1.2rem; }
+  .cats { grid-template-columns: 1fr 1fr; }
+  .cat { min-height: 3.2rem; padding: .6rem .5rem; }
+  .dock .acts, .dock .acts .btn { width: 100%; }
+  .hero { gap: 1.1rem; }
+  .hero h1 { font-size: 3rem; }
+  .lede { font-size: 1.05rem; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
@@ -730,6 +760,9 @@ function render() {
   else body = [vR1, vR2, vR3][S.round]();
   app.innerHTML = hud() + '<main class="page">' + body + '</main>';
   syncTimer();
+  if (S.screen === 'play' && S.round === 0 && S.fb && innerWidth <= 860) window.scrollTo(0, 0);
+  const dk = document.querySelector('.dock');
+  if (dk && S.fb && S.round === 1 && innerWidth <= 860) dk.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   const row = document.getElementById('cur-row');
   if (row) row.scrollIntoView({ block: 'nearest' });
 }
